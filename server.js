@@ -7,42 +7,42 @@ const PORT = process.env.PORT || 3000;
 app.get('/gold-price', async (req, res) => {
   console.log(`[${new Date().toLocaleString()}] API '/gold-price' accessed by: ${req.ip}`);
 
+  let browser;
   try {
-    const browser = await puppeteer.launch({
-      headless: 'new', // ใช้โหมด headless ใหม่
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox'
-      ]
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
     });
 
     const page = await browser.newPage();
     await page.goto('https://th.investing.com/currencies/xau-usd', {
-      waitUntil: 'networkidle2',
-      timeout: 0
+      waitUntil: 'domcontentloaded',
     });
 
-    await page.waitForSelector('div[data-test="instrument-price-last"]');
+    await page.waitForTimeout(5000); // รอโหลดข้อมูล
 
-    const data = await page.evaluate(() => {
-      const lastPrice = document.querySelector('div[data-test="instrument-price-last"]')?.innerText;
+    const lastPrice = await page.$eval('div[data-test="instrument-price-last"]', el => el.textContent.trim());
 
-      const spans = document.querySelectorAll('div.mb-3.flex.justify-between.font-bold span');
-      const lowPrice = spans[0]?.innerText;
-      const highPrice = spans[1]?.innerText;
+    const [lowPrice, highPrice] = await page.$$eval('div.mb-3.flex.justify-between.font-bold span', spans =>
+      spans.map(span => span.textContent.trim())
+    );
 
-      const openPrice = document.querySelector('dd[data-test="open"]')?.innerText;
+    const openPrice = await page.$eval('dd[data-test="open"]', el => el.textContent.trim());
 
-      return { lastPrice, lowPrice, highPrice, openPrice };
+    res.json({
+      "gold price XAU/USD": {
+        lastPrice,
+        lowPrice,
+        highPrice,
+        openPrice,
+      },
     });
 
-    await browser.close();
-
-    res.json({ "gold price XAU/USD": data });
-
-  } catch (err) {
-    console.error("เกิดข้อผิดพลาด:", err);
+  } catch (error) {
+    console.error("เกิดข้อผิดพลาด:", error);
     res.status(500).json({ error: 'ไม่สามารถดึงข้อมูลได้' });
+  } finally {
+    if (browser) await browser.close();
   }
 });
 
