@@ -9,7 +9,7 @@ const PORT = process.env.PORT || 3000;
 app.get('/gold-price', async (req, res) => {
   // เปิด Chrome แบบ headless (ไม่มี UI)
   const options = new chrome.Options();
-  options.addArguments('headless'); // Use this instead of .headless()
+  options.addArguments('headless'); // ใช้โหมด headless แทน .headless()
 
   const driver = await new Builder()
     .forBrowser('chrome')
