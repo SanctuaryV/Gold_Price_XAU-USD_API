@@ -1,59 +1,48 @@
 const express = require('express');
-const { Builder, By } = require('selenium-webdriver');
-const chrome = require('selenium-webdriver/chrome');
-require('chromedriver');
+const puppeteer = require('puppeteer');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/gold-price', async (req, res) => {
-  // แสดง log ว่ามีผู้เข้าถึง API
-  const clientIP = req.ip; // สามารถเก็บ IP ของผู้ใช้งานได้
-  const currentTime = new Date().toLocaleString(); // เวลาในการเข้าถึง API
-  console.log(`[${currentTime}] API '/gold-price' accessed by: ${clientIP}`);
-
-  // เปิด Chrome แบบ headless (ไม่มี UI)
-  const options = new chrome.Options();
-  options.addArguments('headless'); // ใช้โหมด headless แทน .headless()
-
-  const driver = await new Builder()
-    .forBrowser('chrome')
-    .setChromeOptions(options)
-    .build();
+  console.log(`[${new Date().toLocaleString()}] API '/gold-price' accessed by: ${req.ip}`);
 
   try {
-    await driver.get("https://th.investing.com/currencies/xau-usd");
-    await driver.sleep(5000); // รอให้เว็บโหลดข้อมูล
-
-    // ดึงราคาทองล่าสุด
-    const priceElement = await driver.findElement(By.css('div[data-test="instrument-price-last"]'));
-    const lastPrice = await priceElement.getText();
-
-    // ดึงช่วงราคาของวัน (low/high)
-    const rangeDiv = await driver.findElement(By.css('div.mb-3.flex.justify-between.font-bold'));
-    const spans = await rangeDiv.findElements(By.css('span'));
-    const lowPrice = spans.length >= 1 ? await spans[0].getText() : null;
-    const highPrice = spans.length >= 2 ? await spans[1].getText() : null;
-
-    // ดึงราคาเปิดตลาด
-    const openElement = await driver.findElement(By.css('dd[data-test="open"]'));
-    const openPrice = await openElement.getText();
-
-    // ส่งข้อมูลออกเป็น JSON
-    res.json({
-      "gold price XAU/USD": {
-        lastPrice,
-        lowPrice,
-        highPrice,
-        openPrice
-      }
+    const browser = await puppeteer.launch({
+      headless: 'new', // ใช้โหมด headless ใหม่
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox'
+      ]
     });
 
-  } catch (error) {
-    console.error("เกิดข้อผิดพลาด:", error);
+    const page = await browser.newPage();
+    await page.goto('https://th.investing.com/currencies/xau-usd', {
+      waitUntil: 'networkidle2',
+      timeout: 0
+    });
+
+    await page.waitForSelector('div[data-test="instrument-price-last"]');
+
+    const data = await page.evaluate(() => {
+      const lastPrice = document.querySelector('div[data-test="instrument-price-last"]')?.innerText;
+
+      const spans = document.querySelectorAll('div.mb-3.flex.justify-between.font-bold span');
+      const lowPrice = spans[0]?.innerText;
+      const highPrice = spans[1]?.innerText;
+
+      const openPrice = document.querySelector('dd[data-test="open"]')?.innerText;
+
+      return { lastPrice, lowPrice, highPrice, openPrice };
+    });
+
+    await browser.close();
+
+    res.json({ "gold price XAU/USD": data });
+
+  } catch (err) {
+    console.error("เกิดข้อผิดพลาด:", err);
     res.status(500).json({ error: 'ไม่สามารถดึงข้อมูลได้' });
-  } finally {
-    await driver.quit();
   }
 });
 
