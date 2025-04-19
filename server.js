@@ -7,6 +7,11 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 
 app.get('/gold-price', async (req, res) => {
+  // แสดง log ว่ามีผู้เข้าถึง API
+  const clientIP = req.ip; // สามารถเก็บ IP ของผู้ใช้งานได้
+  const currentTime = new Date().toLocaleString(); // เวลาในการเข้าถึง API
+  console.log(`[${currentTime}] API '/gold-price' accessed by: ${clientIP}`);
+
   // เปิด Chrome แบบ headless (ไม่มี UI)
   const options = new chrome.Options();
   options.addArguments('headless'); // ใช้โหมด headless แทน .headless()
